@@ -1,0 +1,208 @@
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400..700;1,9..144,400..700&family=Plus+Jakarta+Sans:ital,wght@0,400..700;1,400..700&display=swap');
+@import 'leaflet/dist/leaflet.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Design Tokens — Golden Hour Glass */
+  --canvas-base: #FFF7EE;
+  --canvas-gradient-1: #FFD9A0;
+  --canvas-gradient-2: #FFB4A2;
+  --canvas-gradient-3: #CFE8CB;
+  --ink: #22282B;
+  --ink-muted: #5C6660;
+  --ink-light: #8C9690;
+  --accent-primary: #E8863A;
+  --accent-primary-hover: #D97528;
+  --accent-trust: #2F6E52;
+  --accent-trust-hover: #255841;
+  --accent-alert: #C4522E;
+  --accent-alert-hover: #AF4523;
+
+  /* Glass Surface System */
+  --glass-surface: rgba(255, 255, 255, 0.65);
+  --glass-surface-subtle: rgba(255, 255, 255, 0.42);
+  --glass-surface-prominent: rgba(255, 255, 255, 0.85);
+  --glass-border: rgba(255, 255, 255, 0.75);
+  --glass-border-subtle: rgba(255, 255, 255, 0.45);
+  --glass-border-prominent: rgba(255, 255, 255, 0.90);
+  --glass-shadow: 0 8px 32px rgba(34, 40, 43, 0.09);
+  --glass-shadow-prominent: 0 14px 44px rgba(34, 40, 43, 0.12);
+
+  /* Fallback bindings */
+  --background: var(--canvas-base);
+  --foreground: var(--ink);
+  --border: rgba(34, 40, 43, 0.10);
+  --input: rgba(34, 40, 43, 0.10);
+  --ring: var(--accent-primary);
+}
+
+body {
+  color: var(--ink);
+  background-color: var(--canvas-base);
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  min-height: 100vh;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  position: relative;
+  overflow-x: hidden;
+}
+
+/* Typography Headings */
+h1, h2, h3, .font-display {
+  font-family: 'Fraunces', Georgia, serif;
+  letter-spacing: -0.015em;
+}
+
+/* Ambient Refracting Mesh Canvas Background */
+.ambient-mesh-canvas {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
+  background-color: var(--canvas-base);
+}
+
+.ambient-blob {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(80px);
+  opacity: 0.65;
+  will-change: transform;
+}
+
+.ambient-blob-amber {
+  top: -8%;
+  left: 8%;
+  width: 580px;
+  height: 520px;
+  background: radial-gradient(circle, var(--canvas-gradient-1) 0%, rgba(255, 217, 160, 0) 70%);
+  animation: floatSlow 26s ease-in-out infinite alternate;
+}
+
+.ambient-blob-coral {
+  top: 35%;
+  right: -5%;
+  width: 640px;
+  height: 580px;
+  background: radial-gradient(circle, var(--canvas-gradient-2) 0%, rgba(255, 180, 162, 0) 70%);
+  animation: floatReverse 30s ease-in-out infinite alternate;
+}
+
+.ambient-blob-sage {
+  bottom: -10%;
+  left: 18%;
+  width: 620px;
+  height: 560px;
+  background: radial-gradient(circle, var(--canvas-gradient-3) 0%, rgba(207, 232, 203, 0) 70%);
+  animation: floatThird 24s ease-in-out infinite alternate;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ambient-blob {
+    animation: none !important;
+  }
+}
+
+/* Frosted Glass Primitives */
+.glass-standard {
+  background: var(--glass-surface);
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+}
+
+.glass-subtle {
+  background: var(--glass-surface-subtle);
+  backdrop-filter: blur(14px) saturate(130%);
+  -webkit-backdrop-filter: blur(14px) saturate(130%);
+  border: 1px solid var(--glass-border-subtle);
+  box-shadow: 0 4px 16px rgba(34, 40, 43, 0.05);
+}
+
+.glass-prominent {
+  background: var(--glass-surface-prominent);
+  backdrop-filter: blur(24px) saturate(150%);
+  -webkit-backdrop-filter: blur(24px) saturate(150%);
+  border: 1px solid var(--glass-border-prominent);
+  box-shadow: var(--glass-shadow-prominent);
+}
+
+/* Accessible Interactive Elements */
+button, a, input, select, textarea {
+  transition-property: background-color, border-color, color, box-shadow, transform;
+  transition-duration: 150ms;
+  transition-timing-function: ease-in-out;
+}
+
+:focus-visible {
+  outline: none;
+  ring: 2px solid var(--accent-primary);
+  box-shadow: 0 0 0 3px rgba(232, 134, 58, 0.35);
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: rgba(255, 247, 238, 0.7);
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(92, 102, 96, 0.25);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(92, 102, 96, 0.45);
+}
+
+/* Leaflet map container styling for warm glass harmony */
+.leaflet-container {
+  width: 100%;
+  height: 100%;
+  border-radius: 1.25rem;
+  z-index: 1;
+}
+
+.leaflet-popup-content-wrapper {
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-radius: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  box-shadow: 0 12px 36px rgba(34, 40, 43, 0.16);
+  padding: 0;
+  overflow: hidden;
+}
+
+.leaflet-popup-content {
+  margin: 0;
+  line-height: 1.5;
+  color: var(--ink);
+}
+
+/* Radar pulse with trust accent */
+@keyframes radar-pulse {
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(47, 110, 82, 0.7);
+  }
+  70% {
+    transform: scale(1.2);
+    box-shadow: 0 0 0 14px rgba(47, 110, 82, 0);
+  }
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(47, 110, 82, 0);
+  }
+}
+
+.radar-dot {
+  animation: radar-pulse 2s infinite;
+}

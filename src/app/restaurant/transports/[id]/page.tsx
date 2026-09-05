@@ -1,0 +1,294 @@
+'use client';
+
+import React, { useState, useEffect } from 'react';
+import { useParams } from 'next/navigation';
+import Link from 'next/link';
+import { FoodBridgeStore } from '@/lib/store';
+import { TransportRecord, TransportStatus } from '@/lib/types';
+import LiveMap from '@/components/Map/LiveMap';
+import IssueFlagModal from '@/components/IssueFlagModal';
+import GlassPanel from '@/components/GlassPanel';
+import {
+  Truck,
+  ArrowLeft,
+  CheckCircle2,
+  AlertCircle,
+  KeyRound,
+  MapPin,
+  Building2,
+  Navigation,
+} from 'lucide-react';
+
+export default function RestaurantTransportTrackingDetail() {
+  const params = useParams();
+  const transportId = params?.id as string;
+
+  const [transport, setTransport] = useState<TransportRecord | null>(null);
+  const [isIssueModalOpen, setIsIssueModalOpen] = useState(false);
+  const [isSimulating, setIsSimulating] = useState(false);
+
+  const loadData = () => {
+    if (!transportId) return;
+    const t = FoodBridgeStore.getTransportById(transportId);
+    setTransport(t ? { ...t } : null);
+  };
+
+  useEffect(() => {
+    FoodBridgeStore.init();
+    loadData();
+    window.addEventListener('foodbridge_state_change', loadData);
+    return () => window.removeEventListener('foodbridge_state_change', loadData);
+  }, [transportId]);
+
+  // Live GPS movement simulation
+  useEffect(() => {
+    if (!isSimulating || !transportId) return;
+    const timer = setInterval(() => {
+      const updated = FoodBridgeStore.simulateDriverMovement(transportId);
+      if (updated) {
+        setTransport({ ...updated });
+      }
+    }, 2500);
+
+    return () => clearInterval(timer);
+  }, [isSimulating, transportId]);
+
+  if (!transport) {
+    return (
+      <div className="max-w-4xl mx-auto px-4 py-16 text-center space-y-4">
+        <h2 className="font-serif font-bold text-xl text-ink">Transport record not found</h2>
+        <Link href="/restaurant/transports" className="text-sm font-semibold text-accent-primary hover:underline">
+          Return to transports list
+        </Link>
+      </div>
+    );
+  }
+
+  const steps: { key: TransportStatus; label: string; desc: string }[] = [
+    { key: 'confirmed', label: 'Tie-up confirmed', desc: 'Pickup scheduled at kitchen dock' },
+    { key: 'en_route', label: 'Driver arriving', desc: 'Driver en route to your kitchen' },
+    { key: 'picked_up', label: 'Food loaded', desc: 'Handoff code verified' },
+    { key: 'in_transit', label: 'En route to NGO', desc: 'Transit across city to shelter' },
+    { key: 'delivered', label: 'Delivered', desc: 'Receipt confirmed by NGO' },
+  ];
+
+  const currentStepIdx = steps.findIndex((s) => s.key === transport.status);
+  const hasIssue = transport.status === 'issue' || Boolean(transport.issue_notes);
+
+  return (
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-3.5">
+          <Link
+            href="/restaurant/transports"
+            className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-2xl glass-subtle hover:bg-white text-ink-muted hover:text-ink transition-colors"
+            aria-label="Back to active pickups"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </Link>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold text-ink-light">Order #{transport.id}</span>
+              <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-accent-primary-subtle text-accent-primary-hover border border-accent-primary/20">
+                {transport.status.replace(/_/g, ' ')}
+              </span>
+            </div>
+            <h1 className="text-xl sm:text-2xl font-serif font-bold text-ink mt-0.5">
+              {transport.listing_title}
+            </h1>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2.5">
+          <button
+            onClick={() => setIsSimulating(!isSimulating)}
+            className={`min-h-[44px] px-4 py-2 rounded-2xl text-xs font-semibold flex items-center gap-2 border transition-all ${
+              isSimulating
+                ? 'bg-accent-primary text-white border-accent-primary shadow-sm'
+                : 'glass-subtle hover:bg-white text-ink border-white/80'
+            }`}
+          >
+            <Navigation className={`w-4 h-4 ${isSimulating ? 'text-white' : 'text-accent-primary'}`} />
+            <span>{isSimulating ? 'GPS broadcasting live' : 'Simulate driver route'}</span>
+          </button>
+
+          <button
+            onClick={() => setIsIssueModalOpen(true)}
+            className="min-h-[44px] px-4 py-2 rounded-2xl bg-white/70 hover:bg-white text-accent-alert border border-accent-alert/30 text-xs font-semibold flex items-center gap-1.5 transition-colors"
+          >
+            <AlertCircle className="w-4 h-4" />
+            <span>Flag an issue</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Active Issue Alert if flagged */}
+      {hasIssue && (
+        <GlassPanel variant="prominent" className="p-4 sm:p-5 border-2 border-accent-alert/50 bg-accent-alert-subtle/80 flex items-start gap-3.5">
+          <div className="w-9 h-9 rounded-xl bg-accent-alert/15 text-accent-alert flex items-center justify-center flex-shrink-0 mt-0.5">
+            <AlertCircle className="w-5 h-5" />
+          </div>
+          <div className="flex-1 text-xs">
+            <h4 className="font-semibold text-ink text-sm">Logistics notice reported</h4>
+            <p className="text-ink-muted mt-0.5 leading-relaxed">
+              {transport.issue_notes || 'An update regarding transit timing or vehicle status was noted. Operations is following up.'}
+            </p>
+          </div>
+        </GlassPanel>
+      )}
+
+      {/* Timeline Stepper */}
+      <GlassPanel variant="standard" className="p-5 sm:p-6">
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+          {steps.map((step, idx) => {
+            const isDone = currentStepIdx >= idx;
+            const isCurrent = currentStepIdx === idx;
+            const isStepAlert = isCurrent && hasIssue;
+
+            return (
+              <div
+                key={step.key}
+                className={`p-3.5 rounded-2xl border transition-all ${
+                  isStepAlert
+                    ? 'border-accent-alert/60 bg-accent-alert-subtle/70 ring-2 ring-accent-alert/40 text-ink'
+                    : isCurrent
+                    ? 'border-accent-primary/50 bg-white ring-2 ring-accent-primary/40 text-ink shadow-xs'
+                    : isDone
+                    ? 'border-white/60 bg-white/40 text-ink'
+                    : 'border-transparent bg-stone-100/40 text-ink-light'
+                }`}
+              >
+                <div className="flex items-center gap-2 mb-1">
+                  <div
+                    className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+                      isStepAlert
+                        ? 'bg-accent-alert text-white'
+                        : isDone
+                        ? 'bg-accent-trust text-white'
+                        : 'bg-stone-200 text-ink-muted'
+                    }`}
+                  >
+                    {isDone ? '✓' : idx + 1}
+                  </div>
+                  <span className="text-xs font-semibold truncate text-ink">{step.label}</span>
+                </div>
+                <p className="text-[11px] text-ink-muted leading-tight mt-1">{step.desc}</p>
+              </div>
+            );
+          })}
+        </div>
+      </GlassPanel>
+
+      {/* Main Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Map Column */}
+        <div className="lg:col-span-2 space-y-3">
+          <GlassPanel variant="prominent" className="p-4 space-y-3">
+            <div className="flex items-center justify-between px-2 pt-1">
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-accent-primary animate-ping" />
+                <h3 className="font-serif font-bold text-sm text-ink">Real-time driver location</h3>
+              </div>
+              <div className="text-xs text-ink-muted">
+                Estimated arrival: <span className="font-bold text-accent-primary tabular-nums">~{transport.estimated_arrival_minutes || 8} mins</span>
+              </div>
+            </div>
+
+            <div className="h-[440px] rounded-2xl overflow-hidden border border-white/80 shadow-inner">
+              <LiveMap
+                transports={[transport]}
+                center={[transport.current_lat, transport.current_lng]}
+                zoom={14}
+                selectedId={transport.id}
+                className="h-full"
+              />
+            </div>
+
+            <div className="flex items-center justify-between text-xs text-ink-muted px-2">
+              <span>Last update: {new Date(transport.last_location_update_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+              <span>Portions: <strong className="text-ink font-semibold">{transport.quantity} {transport.unit}</strong></span>
+            </div>
+          </GlassPanel>
+        </div>
+
+        {/* Sidebar Cards */}
+        <div className="space-y-4">
+          {/* Pickup Handoff OTP Box */}
+          <GlassPanel variant="prominent" className="p-6 bg-ink text-white space-y-3 border-none shadow-glass-lg">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-accent-primary flex items-center gap-1.5">
+                <KeyRound className="w-4 h-4" /> Pickup handoff code
+              </span>
+              <span
+                className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${
+                  transport.pickup_otp_verified ? 'bg-accent-trust/30 text-emerald-300' : 'bg-white/15 text-stone-300'
+                }`}
+              >
+                {transport.pickup_otp_verified ? 'Verified' : 'Pending handoff'}
+              </span>
+            </div>
+
+            <div>
+              <div className="text-4xl font-bold tabular-nums tracking-[0.25em] text-accent-primary">
+                {transport.pickup_otp}
+              </div>
+              <p className="text-xs text-stone-300 mt-2 leading-relaxed">
+                Give this code to the driver upon loading the food containers so departure is confirmed in the system.
+              </p>
+            </div>
+          </GlassPanel>
+
+          {/* Assigned Driver */}
+          <GlassPanel variant="standard" className="p-5 space-y-2.5">
+            <h3 className="font-serif font-bold text-sm text-ink flex items-center gap-2">
+              <Truck className="w-4 h-4 text-accent-primary" /> Assigned driver
+            </h3>
+            <div className="text-xs space-y-1.5">
+              <div className="flex justify-between">
+                <span className="text-ink-muted">Driver:</span>
+                <span className="font-semibold text-ink">{transport.driver_name}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-ink-muted">Vehicle number:</span>
+                <span className="font-semibold tabular-nums text-ink">{transport.vehicle_number}</span>
+              </div>
+              <div className="flex justify-between pt-1 border-t border-stone-200/50">
+                <span className="text-ink-muted">Driver phone:</span>
+                <a href={`tel:${transport.driver_phone}`} className="text-accent-primary font-semibold hover:underline">
+                  {transport.driver_phone}
+                </a>
+              </div>
+            </div>
+          </GlassPanel>
+
+          {/* NGO Destination */}
+          <GlassPanel variant="standard" className="p-5 space-y-2.5">
+            <h3 className="font-serif font-bold text-sm text-ink flex items-center gap-2">
+              <Building2 className="w-4 h-4 text-accent-trust" /> NGO destination
+            </h3>
+            <div className="text-xs space-y-1">
+              <div className="font-semibold text-ink text-sm">{transport.ngo_name}</div>
+              <div className="text-ink-muted leading-relaxed">{transport.ngo_address}</div>
+              <div className="pt-2 border-t border-stone-200/50 flex justify-between items-center">
+                <span className="text-ink-muted">NGO phone:</span>
+                <a href={`tel:${transport.ngo_phone}`} className="text-accent-trust font-semibold hover:underline">
+                  {transport.ngo_phone}
+                </a>
+              </div>
+            </div>
+          </GlassPanel>
+        </div>
+      </div>
+
+      {/* Flag Issue Modal */}
+      <IssueFlagModal
+        isOpen={isIssueModalOpen}
+        onClose={() => setIsIssueModalOpen(false)}
+        transportId={transport.id}
+        listingTitle={transport.listing_title}
+        onSuccess={loadData}
+      />
+    </div>
+  );
+}
