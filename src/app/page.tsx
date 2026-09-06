@@ -9,13 +9,14 @@ import ExpiryCountdown from '@/components/ExpiryCountdown';
 import {
   Utensils,
   Building2,
-  Shield,
   Truck,
   Heart,
   Leaf,
   Clock,
   MapPin,
   Sparkles,
+  ArrowRight,
+  ShieldCheck,
 } from 'lucide-react';
 
 export default function HomePage() {
@@ -67,7 +68,7 @@ export default function HomePage() {
           <div className="lg:col-span-7 space-y-6">
             <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full glass-subtle text-accent-trust text-xs font-semibold">
               <span className="w-2 h-2 rounded-full bg-accent-trust" />
-              <span>Tonight in your city</span>
+              <span>Tonight in your city • Verified Under Indian Food Safety Norms</span>
             </div>
 
             <div className="space-y-3">
@@ -80,7 +81,7 @@ export default function HomePage() {
             </div>
 
             <p className="text-ink-muted text-sm sm:text-base leading-relaxed max-w-xl">
-              FoodBridge coordinates direct pickups between restaurants, hotels, and local hunger relief NGOs. Complete with safe consumption countdowns, proximity radius maps, and verified delivery handoffs.
+              FoodBridge coordinates direct pickups between FSSAI-compliant restaurants, hotels, and local Darpan-registered hunger relief NGOs. Complete with safe consumption countdowns, proximity radius maps, and verified delivery handoffs.
             </p>
 
             <div className="flex flex-wrap items-center gap-3 pt-2">
@@ -100,6 +101,14 @@ export default function HomePage() {
               >
                 <Utensils className="w-4 h-4 text-accent-primary" />
                 <span>Share kitchen surplus</span>
+              </Link>
+
+              <Link
+                href="/login"
+                className="min-h-[48px] px-5 py-3 rounded-2xl bg-stone-100 hover:bg-stone-200 text-stone-800 font-semibold text-sm transition-all flex items-center gap-2"
+              >
+                <span>Partner Login</span>
+                <ArrowRight className="w-4 h-4 text-stone-600" />
               </Link>
             </div>
           </div>
@@ -144,25 +153,25 @@ export default function HomePage() {
 
               <div className="p-3.5 rounded-2xl bg-accent-trust-subtle/70 border border-accent-trust/20 text-xs text-ink flex items-center gap-2.5">
                 <Heart className="w-4 h-4 text-accent-trust flex-shrink-0" />
-                <span>Zero food waste. 100% verified safety handoffs.</span>
+                <span>Zero food waste. 100% verified Indian safety handoffs.</span>
               </div>
             </GlassPanel>
           </div>
         </div>
       </section>
 
-      {/* 4 Role Viewpoints (Varied Card Hierarchy, no cookie cutter grid) */}
+      {/* 3 Verified Partner Roles */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
         <div>
           <h2 className="font-serif font-bold text-2xl text-ink">
             Experience FoodBridge by viewpoint
           </h2>
           <p className="text-xs sm:text-sm text-ink-muted mt-0.5">
-            Test each end of the community food rescue lifecycle:
+            Test each verified partner end of the community food rescue lifecycle:
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {/* Restaurant Portal */}
           <GlassPanel
             as={Link}
@@ -177,15 +186,21 @@ export default function HomePage() {
                 <Utensils className="w-5 h-5" />
               </div>
               <div>
-                <span className="text-xs font-semibold text-accent-primary">Restaurant staff</span>
-                <h3 className="font-serif font-bold text-base text-ink mt-1">Kitchen overview</h3>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-accent-primary">Restaurant staff</span>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-accent-primary/10 text-accent-primary border border-accent-primary/20">
+                    FSSAI Verified
+                  </span>
+                </div>
+                <h3 className="font-serif font-bold text-base text-ink mt-1.5">Kitchen overview</h3>
                 <p className="text-xs text-ink-muted mt-1.5 leading-relaxed">
-                  List surplus dishes in under a minute with visual shelf-life countdowns, specify packing, and accept incoming requests.
+                  List surplus dishes in under a minute with visual shelf-life countdowns, specify hygienic packing, and accept incoming relief requests.
                 </p>
               </div>
             </div>
-            <div className="text-xs font-semibold text-accent-primary pt-3 border-t border-stone-200/50">
-              Open kitchen view
+            <div className="text-xs font-semibold text-accent-primary pt-3 border-t border-stone-200/50 flex items-center justify-between">
+              <span>Open kitchen view</span>
+              <span>→</span>
             </div>
           </GlassPanel>
 
@@ -203,15 +218,21 @@ export default function HomePage() {
                 <Building2 className="w-5 h-5" />
               </div>
               <div>
-                <span className="text-xs font-semibold text-accent-trust">NGO field worker</span>
-                <h3 className="font-serif font-bold text-base text-ink mt-1">Surplus food map</h3>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-accent-trust">NGO field worker</span>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-accent-trust/10 text-accent-trust border border-accent-trust/20">
+                    Darpan Registered
+                  </span>
+                </div>
+                <h3 className="font-serif font-bold text-base text-ink mt-1.5">Surplus food map</h3>
                 <p className="text-xs text-ink-muted mt-1.5 leading-relaxed">
-                  Interactive radius discovery, smart match scoring based on urgency and distance, and instant pickup tie-up requests.
+                  Interactive radius discovery, smart match scoring based on urgency and distance, and instant pickup tie-up requests with verified kitchens.
                 </p>
               </div>
             </div>
-            <div className="text-xs font-semibold text-accent-trust pt-3 border-t border-stone-200/50">
-              Open food discovery
+            <div className="text-xs font-semibold text-accent-trust pt-3 border-t border-stone-200/50 flex items-center justify-between">
+              <span>Open food discovery</span>
+              <span>→</span>
             </div>
           </GlassPanel>
 
@@ -229,41 +250,21 @@ export default function HomePage() {
                 <Truck className="w-5 h-5" />
               </div>
               <div>
-                <span className="text-xs font-semibold text-amber-800">Volunteer driver</span>
-                <h3 className="font-serif font-bold text-base text-ink mt-1">Driver cockpit</h3>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-amber-800">Volunteer driver</span>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-200/60 text-amber-900 border border-amber-300">
+                    RTO Compliant
+                  </span>
+                </div>
+                <h3 className="font-serif font-bold text-base text-ink mt-1.5">Driver cockpit</h3>
                 <p className="text-xs text-ink-muted mt-1.5 leading-relaxed">
-                  Live route guidance, 4-digit code handoffs for departure and delivery, inspection photos, and issue reporting.
+                  Live route guidance, 4-digit OTP code handoffs for departure and delivery, container inspection photos, and live GPS transit.
                 </p>
               </div>
             </div>
-            <div className="text-xs font-semibold text-amber-800 pt-3 border-t border-stone-200/50">
-              Open driver cockpit
-            </div>
-          </GlassPanel>
-
-          {/* Operations Admin */}
-          <GlassPanel
-            as={Link}
-            href="/admin"
-            onClick={() => FoodBridgeStore.switchRole('admin')}
-            variant="standard"
-            hoverLift
-            className="p-6 flex flex-col justify-between space-y-6 border border-white/80"
-          >
-            <div className="space-y-3.5">
-              <div className="w-11 h-11 rounded-2xl bg-stone-200 text-stone-800 flex items-center justify-center">
-                <Shield className="w-5 h-5" />
-              </div>
-              <div>
-                <span className="text-xs font-semibold text-stone-700">Operations desk</span>
-                <h3 className="font-serif font-bold text-base text-ink mt-1">Operations center</h3>
-                <p className="text-xs text-ink-muted mt-1.5 leading-relaxed">
-                  Food safety verification, city-wide live route monitoring, dispute resolution, and audit logs.
-                </p>
-              </div>
-            </div>
-            <div className="text-xs font-semibold text-ink pt-3 border-t border-stone-200/50">
-              Open operations desk
+            <div className="text-xs font-semibold text-amber-800 pt-3 border-t border-stone-200/50 flex items-center justify-between">
+              <span>Open driver cockpit</span>
+              <span>→</span>
             </div>
           </GlassPanel>
         </div>

@@ -1,4 +1,4 @@
-export type UserRole = 'restaurant' | 'ngo' | 'admin' | 'driver';
+export type UserRole = 'restaurant' | 'ngo' | 'driver';
 
 export type VerificationStatus = 'pending' | 'verified' | 'rejected';
 
@@ -11,6 +11,7 @@ export interface User {
   verified_status: VerificationStatus;
   avatar_url?: string;
   created_at: string;
+  auth_provider?: 'email' | 'google';
 }
 
 export type LogisticsCapability = 'none' | 'self_deliver' | 'pickup_only' | 'staff_handoff_cold_storage';
@@ -28,6 +29,15 @@ export interface RestaurantProfile {
   phone: string;
   email: string;
   fssai_license: string;
+  fssai_expiry?: string;
+  gstin?: string;
+  pan_number?: string;
+  trade_license_no?: string;
+  fostac_supervisor_name?: string;
+  establishment_type?: string;
+  city?: string;
+  pincode?: string;
+  fssai_surplus_declaration?: boolean;
   verification_doc_url?: string;
   logistics_capability: LogisticsCapability;
   photos: string[];
@@ -41,11 +51,21 @@ export interface NGOProfile {
   user_id: string;
   org_name: string;
   registration_no: string;
+  darpan_id?: string;
+  registration_type?: string;
+  pan_number?: string;
+  section_12a_80g?: string;
+  fcra_status?: string;
+  authorized_signatory?: string;
+  city?: string;
+  pincode?: string;
+  hygiene_undertaking?: boolean;
   service_area: string;
   address: string;
   lat: number;
   lng: number;
   capacity_per_day: number;
+  daily_meal_capacity?: number;
   storage_capacity: string;
   verification_doc_url?: string;
   has_own_transport: boolean;
@@ -55,6 +75,30 @@ export interface NGOProfile {
   total_meals_received: number;
   people_served: number;
   partner_restaurants_count: number;
+}
+
+export interface DriverProfile {
+  id: string;
+  user_id: string;
+  full_legal_name: string;
+  phone: string;
+  email: string;
+  dl_number: string;
+  dl_expiry: string;
+  aadhaar_last4: string;
+  vehicle_number: string;
+  vehicle_type: string;
+  puc_number: string;
+  puc_expiry?: string;
+  insurance_policy_no: string;
+  has_insulated_carrier: boolean;
+  emergency_contact_name: string;
+  emergency_contact_phone: string;
+  service_city: string;
+  service_pincodes: string[];
+  volunteer_pledge: boolean;
+  total_pickups_completed: number;
+  rating: number;
 }
 
 export type FoodCategory =

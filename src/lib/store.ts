@@ -4,6 +4,7 @@ import {
   User,
   RestaurantProfile,
   NGOProfile,
+  DriverProfile,
   SurplusListing,
   NGONeedRequest,
   TieUpRequest,
@@ -19,6 +20,7 @@ import {
   SEED_USERS,
   SEED_RESTAURANTS,
   SEED_NGOS,
+  SEED_DRIVERS,
   SEED_LISTINGS,
   SEED_STANDING_NEEDS,
   SEED_TIE_UPS,
@@ -32,8 +34,10 @@ import { calculateDistanceKm, interpolateRoute } from './geo';
 const STORAGE_KEYS = {
   USERS: 'foodbridge_users',
   CURRENT_USER: 'foodbridge_current_user',
+  AUTH_STATUS: 'foodbridge_auth_status',
   RESTAURANTS: 'foodbridge_restaurants',
   NGOS: 'foodbridge_ngos',
+  DRIVERS: 'foodbridge_drivers',
   LISTINGS: 'foodbridge_listings',
   STANDING_NEEDS: 'foodbridge_standing_needs',
   TIE_UPS: 'foodbridge_tie_ups',
@@ -77,12 +81,21 @@ export class FoodBridgeStore {
     if (!window.localStorage.getItem(STORAGE_KEYS.CURRENT_USER)) {
       // Default to Restaurant Manager for initial demo view, or NGO
       setStorage(STORAGE_KEYS.CURRENT_USER, SEED_USERS[0]);
+    } else {
+      // Clean up legacy admin role if present
+      const current = getStorage<User | null>(STORAGE_KEYS.CURRENT_USER, null);
+      if (current && (current as any).role === 'admin') {
+        setStorage(STORAGE_KEYS.CURRENT_USER, SEED_USERS[0]);
+      }
     }
     if (!window.localStorage.getItem(STORAGE_KEYS.RESTAURANTS)) {
       setStorage(STORAGE_KEYS.RESTAURANTS, SEED_RESTAURANTS);
     }
     if (!window.localStorage.getItem(STORAGE_KEYS.NGOS)) {
       setStorage(STORAGE_KEYS.NGOS, SEED_NGOS);
+    }
+    if (!window.localStorage.getItem(STORAGE_KEYS.DRIVERS)) {
+      setStorage(STORAGE_KEYS.DRIVERS, SEED_DRIVERS);
     }
     if (!window.localStorage.getItem(STORAGE_KEYS.LISTINGS)) {
       setStorage(STORAGE_KEYS.LISTINGS, SEED_LISTINGS);
@@ -127,8 +140,12 @@ export class FoodBridgeStore {
     if (typeof window === 'undefined') return;
     setStorage(STORAGE_KEYS.USERS, SEED_USERS);
     setStorage(STORAGE_KEYS.CURRENT_USER, SEED_USERS[0]);
+    if (typeof window !== 'undefined') {
+      window.localStorage.removeItem(STORAGE_KEYS.AUTH_STATUS);
+    }
     setStorage(STORAGE_KEYS.RESTAURANTS, SEED_RESTAURANTS);
     setStorage(STORAGE_KEYS.NGOS, SEED_NGOS);
+    setStorage(STORAGE_KEYS.DRIVERS, SEED_DRIVERS);
     setStorage(STORAGE_KEYS.LISTINGS, SEED_LISTINGS);
     setStorage(STORAGE_KEYS.STANDING_NEEDS, SEED_STANDING_NEEDS);
     setStorage(STORAGE_KEYS.TIE_UPS, SEED_TIE_UPS);
@@ -140,11 +157,32 @@ export class FoodBridgeStore {
 
   // Auth & Current User
   static getCurrentUser(): User {
-    return getStorage<User>(STORAGE_KEYS.CURRENT_USER, SEED_USERS[0]);
+    if (typeof window === 'undefined') return SEED_USERS[0];
+    const user = getStorage<User | null>(STORAGE_KEYS.CURRENT_USER, SEED_USERS[0]);
+    if (user && (user as any).role === 'admin') {
+      setStorage(STORAGE_KEYS.CURRENT_USER, SEED_USERS[0]);
+      return SEED_USERS[0];
+    }
+    return user || SEED_USERS[0];
+  }
+
+  static getAuthUser(): User | null {
+    if (typeof window === 'undefined') return SEED_USERS[0];
+    const status = window.localStorage.getItem(STORAGE_KEYS.AUTH_STATUS);
+    if (status === 'unauthenticated') return null;
+    return this.getCurrentUser();
+  }
+
+  static isAuthenticated(): boolean {
+    if (typeof window === 'undefined') return true;
+    return window.localStorage.getItem(STORAGE_KEYS.AUTH_STATUS) !== 'unauthenticated';
   }
 
   static setCurrentUser(user: User): void {
     setStorage(STORAGE_KEYS.CURRENT_USER, user);
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(STORAGE_KEYS.AUTH_STATUS, 'authenticated');
+    }
   }
 
   static switchRole(role: UserRole): User {
@@ -155,7 +193,297 @@ export class FoodBridgeStore {
   }
 
   static getUsers(): User[] {
-    return getStorage<User[]>(STORAGE_KEYS.USERS, SEED_USERS);
+    return getStorage<User[]>(STORAGE_KEYS.USERS, SEED_USERS).filter((u) => (u as any).role !== 'admin');
+  }
+
+  static logout(): void {
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(STORAGE_KEYS.AUTH_STATUS, 'unauthenticated');
+      window.dispatchEvent(new Event('foodbridge_state_change'));
+    }
+  }
+
+  static login(email: string, password?: string, preferredRole?: UserRole): { success: boolean; user?: User; error?: string } {
+    const users = this.getUsers();
+    let target = users.find((u) => u.email.toLowerCase() === email.toLowerCase());
+    if (!target && preferredRole) {
+      target = users.find((u) => u.role === preferredRole);
+    }
+    if (!target) {
+      // If not registered yet, default to first user or create one
+      target = users[0];
+    }
+    this.setCurrentUser(target);
+    return { success: true, user: target };
+  }
+
+  static loginWithGoogle(
+    googleUser: { name: string; email: string; avatar_url?: string },
+    role: UserRole = 'restaurant',
+    extraProfileDetails?: any
+  ): User {
+    const users = this.getUsers();
+    let existing = users.find((u) => u.email.toLowerCase() === googleUser.email.toLowerCase());
+
+    if (existing) {
+      if (googleUser.avatar_url) existing.avatar_url = googleUser.avatar_url;
+      existing.auth_provider = 'google';
+      this.setCurrentUser(existing);
+      return existing;
+    }
+
+    // Create new user with Google credentials
+    const newUser: User = {
+      id: `usr_${role}_${Date.now()}`,
+      role,
+      name: googleUser.name,
+      email: googleUser.email,
+      phone: '+91 98765 00000',
+      verified_status: 'verified',
+      avatar_url: googleUser.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
+      created_at: new Date().toISOString(),
+      auth_provider: 'google',
+    };
+
+    setStorage(STORAGE_KEYS.USERS, [...users, newUser]);
+
+    // Create corresponding profile
+    if (role === 'restaurant') {
+      const newRest: RestaurantProfile = {
+        id: `rest_${Date.now()}`,
+        user_id: newUser.id,
+        business_name: extraProfileDetails?.business_name || `${googleUser.name}'s Kitchen`,
+        address: extraProfileDetails?.address || '120 MG Road, Bengaluru 560001',
+        lat: 12.9716,
+        lng: 77.5946,
+        cuisine_type: extraProfileDetails?.cuisine_type || 'Multi-Cuisine & Healthy Meals',
+        operating_hours: '10:00 AM - 11:00 PM',
+        contact_person: googleUser.name,
+        phone: newUser.phone,
+        email: newUser.email,
+        fssai_license: extraProfileDetails?.fssai_license || '11223344556600',
+        fssai_expiry: extraProfileDetails?.fssai_expiry || '2028-05-31',
+        gstin: extraProfileDetails?.gstin || '29AAAAA0000A1Z5',
+        pan_number: extraProfileDetails?.pan_number || 'AAAAA0000A',
+        trade_license_no: extraProfileDetails?.trade_license_no || 'BBMP/HL/2024/9912',
+        fostac_supervisor_name: extraProfileDetails?.fostac_supervisor_name || googleUser.name,
+        establishment_type: extraProfileDetails?.establishment_type || 'Dine-in Restaurant',
+        city: extraProfileDetails?.city || 'Bengaluru',
+        pincode: extraProfileDetails?.pincode || '560001',
+        fssai_surplus_declaration: true,
+        logistics_capability: 'staff_handoff_cold_storage',
+        photos: ['https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=600'],
+        total_meals_donated: 0,
+        co2_saved_kg: 0,
+        rating: 5.0,
+      };
+      this.saveRestaurant(newRest);
+    } else if (role === 'ngo') {
+      const newNGO: NGOProfile = {
+        id: `ngo_${Date.now()}`,
+        user_id: newUser.id,
+        org_name: extraProfileDetails?.org_name || `${googleUser.name} Relief Organization`,
+        registration_no: extraProfileDetails?.registration_no || 'REG-NGO-2024-KA-8812',
+        darpan_id: extraProfileDetails?.darpan_id || 'KA/2024/0077881',
+        registration_type: extraProfileDetails?.registration_type || 'Public Charitable Trust',
+        pan_number: extraProfileDetails?.pan_number || 'AABTP9999K',
+        section_12a_80g: extraProfileDetails?.section_12a_80g || '12A/80G/CIT(E)/BLR/2024-25/X-01',
+        fcra_status: 'Domestic Relief Only',
+        authorized_signatory: googleUser.name,
+        city: extraProfileDetails?.city || 'Bengaluru',
+        pincode: extraProfileDetails?.pincode || '560001',
+        hygiene_undertaking: true,
+        service_area: extraProfileDetails?.service_area || 'Bengaluru Urban & Outskirts',
+        address: extraProfileDetails?.address || '55 Halasuru Road, Bengaluru 560008',
+        lat: 12.975,
+        lng: 77.62,
+        capacity_per_day: extraProfileDetails?.capacity_per_day || 400,
+        storage_capacity: 'Commercial refrigerator and insulated hotboxes',
+        has_own_transport: true,
+        contact_person: googleUser.name,
+        phone: newUser.phone,
+        email: newUser.email,
+        total_meals_received: 0,
+        people_served: 0,
+        partner_restaurants_count: 0,
+      };
+      this.saveNGO(newNGO);
+    } else if (role === 'driver') {
+      const newDriver: DriverProfile = {
+        id: `drv_${Date.now()}`,
+        user_id: newUser.id,
+        full_legal_name: googleUser.name,
+        phone: newUser.phone,
+        email: newUser.email,
+        dl_number: extraProfileDetails?.dl_number || 'KA01 20230099881',
+        dl_expiry: extraProfileDetails?.dl_expiry || '2038-09-20',
+        aadhaar_last4: extraProfileDetails?.aadhaar_last4 || 'XXXX-XXXX-3344',
+        vehicle_number: extraProfileDetails?.vehicle_number || 'KA-01-EQ-9921',
+        vehicle_type: extraProfileDetails?.vehicle_type || 'Two-Wheeler with Insulated Box',
+        puc_number: extraProfileDetails?.puc_number || 'PUC/KA01/2024/7711',
+        puc_expiry: '2025-11-20',
+        insurance_policy_no: extraProfileDetails?.insurance_policy_no || 'ICICI-LOMB-2024-112233',
+        has_insulated_carrier: true,
+        emergency_contact_name: 'Family Contact',
+        emergency_contact_phone: '+91 98888 77777',
+        service_city: extraProfileDetails?.service_city || 'Bengaluru',
+        service_pincodes: ['560001', '560025', '560034'],
+        volunteer_pledge: true,
+        total_pickups_completed: 0,
+        rating: 5.0,
+      };
+      this.saveDriver(newDriver);
+    }
+
+    this.setCurrentUser(newUser);
+    return newUser;
+  }
+
+  static registerUser(params: {
+    role: UserRole;
+    name: string;
+    email: string;
+    phone: string;
+    password?: string;
+    restaurantDetails?: Partial<RestaurantProfile>;
+    ngoDetails?: Partial<NGOProfile>;
+    driverDetails?: Partial<DriverProfile>;
+  }): User {
+    const users = this.getUsers();
+    const newUser: User = {
+      id: `usr_${params.role}_${Date.now()}`,
+      role: params.role,
+      name: params.name,
+      email: params.email,
+      phone: params.phone,
+      verified_status: 'verified',
+      avatar_url: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(params.name)}`,
+      created_at: new Date().toISOString(),
+      auth_provider: 'email',
+    };
+
+    setStorage(STORAGE_KEYS.USERS, [...users, newUser]);
+
+    if (params.role === 'restaurant' && params.restaurantDetails) {
+      const restProfile: RestaurantProfile = {
+        id: `rest_${Date.now()}`,
+        user_id: newUser.id,
+        business_name: params.restaurantDetails.business_name || params.name,
+        address: params.restaurantDetails.address || 'Bengaluru, Karnataka',
+        lat: params.restaurantDetails.lat || 12.9716,
+        lng: params.restaurantDetails.lng || 77.5946,
+        cuisine_type: params.restaurantDetails.cuisine_type || 'Multi-Cuisine',
+        operating_hours: params.restaurantDetails.operating_hours || '10:00 AM - 11:00 PM',
+        contact_person: params.name,
+        phone: params.phone,
+        email: params.email,
+        fssai_license: params.restaurantDetails.fssai_license || '10022043000123',
+        fssai_expiry: params.restaurantDetails.fssai_expiry || '2028-12-31',
+        gstin: params.restaurantDetails.gstin || '29AAAAA0000A1Z5',
+        pan_number: params.restaurantDetails.pan_number || 'AAAAA0000A',
+        trade_license_no: params.restaurantDetails.trade_license_no || 'BBMP/HL/2024/001',
+        fostac_supervisor_name: params.restaurantDetails.fostac_supervisor_name || params.name,
+        establishment_type: params.restaurantDetails.establishment_type || 'Dine-in Restaurant',
+        city: params.restaurantDetails.city || 'Bengaluru',
+        pincode: params.restaurantDetails.pincode || '560001',
+        fssai_surplus_declaration: true,
+        logistics_capability: params.restaurantDetails.logistics_capability || 'staff_handoff_cold_storage',
+        photos: ['https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=600'],
+        total_meals_donated: 0,
+        co2_saved_kg: 0,
+        rating: 5.0,
+      };
+      this.saveRestaurant(restProfile);
+    } else if (params.role === 'ngo' && params.ngoDetails) {
+      const ngoProfile: NGOProfile = {
+        id: `ngo_${Date.now()}`,
+        user_id: newUser.id,
+        org_name: params.ngoDetails.org_name || params.name,
+        registration_no: params.ngoDetails.registration_no || 'REG-NGO-2024-001',
+        darpan_id: params.ngoDetails.darpan_id || 'KA/2024/0099881',
+        registration_type: params.ngoDetails.registration_type || 'Public Charitable Trust',
+        pan_number: params.ngoDetails.pan_number || 'AABTP1234F',
+        section_12a_80g: params.ngoDetails.section_12a_80g || '12A/80G/CIT(E)/BLR/2024/001',
+        fcra_status: params.ngoDetails.fcra_status || 'Domestic Relief Only',
+        authorized_signatory: params.ngoDetails.authorized_signatory || params.name,
+        city: params.ngoDetails.city || 'Bengaluru',
+        pincode: params.ngoDetails.pincode || '560001',
+        hygiene_undertaking: true,
+        service_area: params.ngoDetails.service_area || 'Bengaluru City',
+        address: params.ngoDetails.address || 'Bengaluru, Karnataka',
+        lat: params.ngoDetails.lat || 12.9645,
+        lng: params.ngoDetails.lng || 77.6015,
+        capacity_per_day: params.ngoDetails.capacity_per_day || 500,
+        storage_capacity: params.ngoDetails.storage_capacity || 'Cold storage & chillers',
+        has_own_transport: params.ngoDetails.has_own_transport ?? true,
+        contact_person: params.name,
+        phone: params.phone,
+        email: params.email,
+        total_meals_received: 0,
+        people_served: 0,
+        partner_restaurants_count: 0,
+      };
+      this.saveNGO(ngoProfile);
+    } else if (params.role === 'driver' && params.driverDetails) {
+      const driverProfile: DriverProfile = {
+        id: `drv_${Date.now()}`,
+        user_id: newUser.id,
+        full_legal_name: params.driverDetails.full_legal_name || params.name,
+        phone: params.phone,
+        email: params.email,
+        dl_number: params.driverDetails.dl_number || 'KA01 20240011223',
+        dl_expiry: params.driverDetails.dl_expiry || '2039-01-01',
+        aadhaar_last4: params.driverDetails.aadhaar_last4 || 'XXXX-XXXX-1234',
+        vehicle_number: params.driverDetails.vehicle_number || 'KA-01-AB-1234',
+        vehicle_type: params.driverDetails.vehicle_type || 'Two-Wheeler with Delivery Box',
+        puc_number: params.driverDetails.puc_number || 'PUC/KA01/2024/001',
+        puc_expiry: params.driverDetails.puc_expiry || '2025-12-31',
+        insurance_policy_no: params.driverDetails.insurance_policy_no || 'POL-MOTOR-2024-001',
+        has_insulated_carrier: params.driverDetails.has_insulated_carrier ?? true,
+        emergency_contact_name: params.driverDetails.emergency_contact_name || 'Emergency Contact',
+        emergency_contact_phone: params.driverDetails.emergency_contact_phone || params.phone,
+        service_city: params.driverDetails.service_city || 'Bengaluru',
+        service_pincodes: params.driverDetails.service_pincodes || ['560001', '560025'],
+        volunteer_pledge: true,
+        total_pickups_completed: 0,
+        rating: 5.0,
+      };
+      this.saveDriver(driverProfile);
+    }
+
+    this.setCurrentUser(newUser);
+    return newUser;
+  }
+
+  static updateCurrentUser(userUpdates: Partial<User>, roleDetails?: any): User {
+    const user = this.getCurrentUser();
+    if (!user) throw new Error('No user logged in');
+
+    const updatedUser: User = { ...user, ...userUpdates };
+    const users = this.getUsers().map((u) => (u.id === user.id ? updatedUser : u));
+    setStorage(STORAGE_KEYS.USERS, users);
+    this.setCurrentUser(updatedUser);
+
+    if (roleDetails) {
+      if (user.role === 'restaurant') {
+        const rest = this.getRestaurantByUserId(user.id);
+        if (rest) {
+          this.saveRestaurant({ ...rest, ...roleDetails });
+        }
+      } else if (user.role === 'ngo') {
+        const ngo = this.getNGOByUserId(user.id);
+        if (ngo) {
+          this.saveNGO({ ...ngo, ...roleDetails });
+        }
+      } else if (user.role === 'driver') {
+        const driver = this.getDriverByUserId(user.id);
+        if (driver) {
+          this.saveDriver({ ...driver, ...roleDetails });
+        }
+      }
+    }
+
+    return updatedUser;
   }
 
   // Profiles
@@ -171,6 +499,17 @@ export class FoodBridgeStore {
     return this.getRestaurants().find((r) => r.id === id);
   }
 
+  static saveRestaurant(restaurant: RestaurantProfile): void {
+    const list = this.getRestaurants();
+    const index = list.findIndex((r) => r.id === restaurant.id || r.user_id === restaurant.user_id);
+    if (index >= 0) {
+      list[index] = restaurant;
+    } else {
+      list.push(restaurant);
+    }
+    setStorage(STORAGE_KEYS.RESTAURANTS, list);
+  }
+
   static getNGOs(): NGOProfile[] {
     return getStorage<NGOProfile[]>(STORAGE_KEYS.NGOS, SEED_NGOS);
   }
@@ -181,6 +520,40 @@ export class FoodBridgeStore {
 
   static getNGOById(id: string): NGOProfile | undefined {
     return this.getNGOs().find((n) => n.id === id);
+  }
+
+  static saveNGO(ngo: NGOProfile): void {
+    const list = this.getNGOs();
+    const index = list.findIndex((n) => n.id === ngo.id || n.user_id === ngo.user_id);
+    if (index >= 0) {
+      list[index] = ngo;
+    } else {
+      list.push(ngo);
+    }
+    setStorage(STORAGE_KEYS.NGOS, list);
+  }
+
+  static getDrivers(): DriverProfile[] {
+    return getStorage<DriverProfile[]>(STORAGE_KEYS.DRIVERS, SEED_DRIVERS);
+  }
+
+  static getDriverByUserId(userId: string): DriverProfile | undefined {
+    return this.getDrivers().find((d) => d.user_id === userId);
+  }
+
+  static getDriverById(id: string): DriverProfile | undefined {
+    return this.getDrivers().find((d) => d.id === id);
+  }
+
+  static saveDriver(driver: DriverProfile): void {
+    const list = this.getDrivers();
+    const index = list.findIndex((d) => d.id === driver.id || d.user_id === driver.user_id);
+    if (index >= 0) {
+      list[index] = driver;
+    } else {
+      list.push(driver);
+    }
+    setStorage(STORAGE_KEYS.DRIVERS, list);
   }
 
   // Listings
@@ -687,14 +1060,16 @@ export class FoodBridgeStore {
     // Update transport status
     this.updateTransportStatus(transport.id, 'issue', { notes: params.description });
 
-    // Notify Admin
+    // Notify involved parties
+    const notifyRole = user.role === 'restaurant' ? 'ngo' : 'restaurant';
+    const notifyLink = notifyRole === 'restaurant' ? `/restaurant/transports/${transport.id}` : `/ngo/transport/${transport.id}`;
     this.addNotification({
-      user_id: 'usr_admin_1',
-      role: 'admin',
+      user_id: user.role === 'restaurant' ? transport.ngo_id : transport.restaurant_id,
+      role: notifyRole,
       type: 'issue_flagged',
       title: `🚨 Issue Flagged on #${transport.id}`,
       message: `${user.name} reported "${params.issue_type.replace('_', ' ')}": ${params.description}`,
-      link: `/admin/issues`,
+      link: notifyLink,
     });
 
     this.addAuditLog({

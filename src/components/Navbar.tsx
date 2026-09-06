@@ -11,16 +11,15 @@ import {
   Utensils,
   Search,
   Building2,
-  Shield,
   Truck,
   PlusCircle,
   Inbox,
-  MapPin,
   BarChart3,
   Menu,
   X,
-  FileCheck2,
-  AlertCircle,
+  User as UserIcon,
+  LogOut,
+  LogIn,
 } from 'lucide-react';
 
 export default function Navbar() {
@@ -30,14 +29,19 @@ export default function Navbar() {
 
   useEffect(() => {
     FoodBridgeStore.init();
-    setCurrentUser(FoodBridgeStore.getCurrentUser());
+    setCurrentUser(FoodBridgeStore.getAuthUser());
 
     const handleUpdate = () => {
-      setCurrentUser(FoodBridgeStore.getCurrentUser());
+      setCurrentUser(FoodBridgeStore.getAuthUser());
     };
     window.addEventListener('foodbridge_state_change', handleUpdate);
     return () => window.removeEventListener('foodbridge_state_change', handleUpdate);
   }, []);
+
+  const handleLogout = () => {
+    FoodBridgeStore.logout();
+    window.location.href = '/login';
+  };
 
   const role = currentUser?.role || 'restaurant';
 
@@ -59,14 +63,6 @@ export default function Navbar() {
           { href: '/ngo/requests', label: 'My requests', icon: Inbox },
           { href: '/ngo/transports', label: 'Deliveries in transit', icon: Truck },
           { href: '/impact', label: 'Impact', icon: BarChart3 },
-        ];
-      case 'admin':
-        return [
-          { href: '/admin', label: 'Operations center', icon: Shield },
-          { href: '/admin/live-map', label: 'City overview map', icon: MapPin, highlight: true },
-          { href: '/admin/verifications', label: 'Partner checks', icon: FileCheck2 },
-          { href: '/admin/issues', label: 'Flagged reports', icon: AlertCircle },
-          { href: '/impact', label: 'Impact numbers', icon: BarChart3 },
         ];
       case 'driver':
         return [
@@ -129,10 +125,58 @@ export default function Navbar() {
             </nav>
           </div>
 
-          {/* Right Header Controls: Notification + Role Switcher */}
-          <div className="flex items-center gap-2.5 sm:gap-3">
-            <NotificationCenter />
-            <RoleSwitcher />
+          {/* Right Header Controls */}
+          <div className="flex items-center gap-2 sm:gap-2.5">
+            {currentUser ? (
+              <>
+                <NotificationCenter />
+                <RoleSwitcher />
+
+                {/* Profile Link */}
+                <Link
+                  href="/profile"
+                  className={`min-h-[44px] flex items-center gap-2 px-2.5 sm:px-3 py-1.5 rounded-xl border border-white/80 backdrop-blur-md shadow-xs transition-all text-xs font-semibold ${
+                    pathname === '/profile'
+                      ? 'bg-ink text-white shadow-md'
+                      : 'bg-white/70 hover:bg-white text-ink hover:shadow-sm'
+                  }`}
+                  title="My Profile & Compliance Info"
+                >
+                  {currentUser.avatar_url ? (
+                    <img
+                      src={currentUser.avatar_url}
+                      alt={currentUser.name}
+                      className="w-6 h-6 rounded-full object-cover border border-stone-200"
+                    />
+                  ) : (
+                    <div className="w-6 h-6 rounded-full bg-accent-primary-subtle text-accent-primary flex items-center justify-center font-bold text-[11px]">
+                      {currentUser.name.charAt(0)}
+                    </div>
+                  )}
+                  <span className="hidden md:inline max-w-[100px] truncate">{currentUser.name.split(' ')[0]}</span>
+                  <span className="hidden xl:inline text-[10px] uppercase font-bold px-1.5 py-0.5 rounded-md bg-stone-100 text-stone-600">
+                    Profile
+                  </span>
+                </Link>
+
+                {/* Logout Button */}
+                <button
+                  onClick={handleLogout}
+                  className="p-2.5 rounded-xl text-stone-500 hover:text-accent-alert hover:bg-white/70 transition-colors hidden sm:flex items-center justify-center"
+                  title="Sign Out"
+                >
+                  <LogOut className="w-4 h-4" />
+                </button>
+              </>
+            ) : (
+              <Link
+                href="/login"
+                className="min-h-[44px] px-4 py-2 rounded-xl bg-accent-primary hover:bg-accent-primary-hover text-white text-xs font-semibold shadow-md shadow-accent-primary/20 flex items-center gap-2 transition-all"
+              >
+                <LogIn className="w-4 h-4" />
+                <span>Sign In / Join</span>
+              </Link>
+            )}
 
             {/* Mobile menu toggle */}
             <button
@@ -149,8 +193,17 @@ export default function Navbar() {
       {/* Mobile Menu Dropdown */}
       {isMobileMenuOpen && (
         <div className="lg:hidden border-t border-white/70 bg-white/90 backdrop-blur-xl px-4 pt-3 pb-5 space-y-1.5 shadow-xl animate-in fade-in duration-150">
-          <div className="text-xs font-semibold text-ink-light px-3 py-1">
-            Active view: {role}
+          <div className="text-xs font-semibold text-ink-light px-3 py-1 flex items-center justify-between">
+            <span>Active view: {role}</span>
+            {currentUser && (
+              <Link
+                href="/profile"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="text-accent-primary font-bold hover:underline"
+              >
+                View Profile →
+              </Link>
+            )}
           </div>
           {navLinks.map((link) => {
             const Icon = link.icon;
@@ -173,6 +226,37 @@ export default function Navbar() {
               </Link>
             );
           })}
+
+          <div className="pt-2 border-t border-stone-200/60 mt-2 space-y-1">
+            {currentUser ? (
+              <>
+                <Link
+                  href="/profile"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="min-h-[44px] flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-xs font-semibold text-ink hover:bg-white/70"
+                >
+                  <UserIcon className="w-4 h-4 text-accent-primary" />
+                  <span>My Profile & Indian Compliance Info</span>
+                </Link>
+                <button
+                  onClick={handleLogout}
+                  className="min-h-[44px] w-full flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-xs font-semibold text-accent-alert hover:bg-red-50 text-left"
+                >
+                  <LogOut className="w-4 h-4" />
+                  <span>Sign Out</span>
+                </button>
+              </>
+            ) : (
+              <Link
+                href="/login"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="min-h-[44px] flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-semibold bg-accent-primary text-white text-center shadow-sm"
+              >
+                <LogIn className="w-4 h-4" />
+                <span>Sign In / Register</span>
+              </Link>
+            )}
+          </div>
         </div>
       )}
     </header>

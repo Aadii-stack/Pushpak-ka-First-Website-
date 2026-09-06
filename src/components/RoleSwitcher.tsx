@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { FoodBridgeStore } from '@/lib/store';
 import { User, UserRole } from '@/lib/types';
-import { Utensils, Building2, Shield, Truck, ChevronDown, Check } from 'lucide-react';
+import { Utensils, Building2, Truck, ChevronDown, Check } from 'lucide-react';
 
 interface RoleOption {
   role: UserRole;
@@ -43,15 +43,6 @@ const ROLE_OPTIONS: RoleOption[] = [
     badgeBg: 'bg-amber-100',
     badgeText: 'text-amber-800',
   },
-  {
-    role: 'admin',
-    label: 'Operations admin',
-    sublabel: 'FoodBridge command center',
-    name: 'Operations Team',
-    icon: Shield,
-    badgeBg: 'bg-stone-200',
-    badgeText: 'text-stone-800',
-  },
 ];
 
 export default function RoleSwitcher() {
@@ -77,7 +68,6 @@ export default function RoleSwitcher() {
     // Navigate to role homepage
     if (role === 'restaurant') window.location.href = '/restaurant';
     else if (role === 'ngo') window.location.href = '/ngo/discover';
-    else if (role === 'admin') window.location.href = '/admin';
     else if (role === 'driver') window.location.href = '/driver';
   };
 
