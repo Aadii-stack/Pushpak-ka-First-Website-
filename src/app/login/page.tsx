@@ -101,12 +101,23 @@ export default function LoginPage() {
   };
 
   // Quick 1-Click Demo Login
-  const handleQuickLogin = (role: UserRole) => {
-    const user = FoodBridgeStore.switchRole(role);
-    setSuccessMsg(`Logged in successfully as ${user.name} (${role.toUpperCase()})`);
-    setTimeout(() => {
-      router.push('/profile');
-    }, 300);
+  const handleQuickLogin = async (role: UserRole) => {
+    setIsSubmitting(true);
+    try {
+      const user = await FoodBridgeStore.switchRoleAsync(role);
+      setSuccessMsg(`Logged in successfully as ${user.name} (${role.toUpperCase()})`);
+      setTimeout(() => {
+        router.push('/profile');
+      }, 300);
+    } catch {
+      const user = FoodBridgeStore.switchRole(role);
+      setSuccessMsg(`Logged in successfully as ${user.name} (${role.toUpperCase()})`);
+      setTimeout(() => {
+        router.push('/profile');
+      }, 300);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   // Google OAuth Success Handler
@@ -122,7 +133,7 @@ export default function LoginPage() {
   };
 
   // Handle Standard Sign In
-  const handleSignIn = (e: React.FormEvent) => {
+  const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
     if (!email) {
@@ -131,22 +142,25 @@ export default function LoginPage() {
     }
 
     setIsSubmitting(true);
-    setTimeout(() => {
-      const res = FoodBridgeStore.login(email, password, selectedRole);
+    try {
+      const res = await FoodBridgeStore.loginAsync(email, password, selectedRole);
       if (res.success && res.user) {
         setSuccessMsg(`Welcome back, ${res.user.name}! Redirecting to profile...`);
         setTimeout(() => {
           router.push('/profile');
         }, 400);
       } else {
-        setErrorMsg('User not found. Try Quick Login or Register below.');
+        setErrorMsg(res.error || 'User not found. Try Quick Login or Register below.');
       }
+    } catch (err: any) {
+      setErrorMsg(err?.message || 'Login failed. Please check credentials.');
+    } finally {
       setIsSubmitting(false);
-    }, 300);
+    }
   };
 
   // Handle Full Registration with Indian Legal Compliance
-  const handleRegister = (e: React.FormEvent) => {
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
 
@@ -158,6 +172,8 @@ export default function LoginPage() {
     setIsSubmitting(true);
 
     try {
+      let regResult: { success: boolean; user?: any; error?: string };
+
       if (selectedRole === 'restaurant') {
         if (!restBusinessName || !restFssai) {
           setErrorMsg('FSSAI 14-digit License & Restaurant Business Name are legally required in India.');
@@ -165,7 +181,7 @@ export default function LoginPage() {
           return;
         }
 
-        const registeredUser = FoodBridgeStore.registerUser({
+        regResult = await FoodBridgeStore.registerUserAsync({
           role: 'restaurant',
           name,
           email,
@@ -187,8 +203,6 @@ export default function LoginPage() {
             fssai_surplus_declaration: restFssaiPledge,
           },
         });
-
-        setSuccessMsg(`Registration successful! Verified FSSAI profile created for ${registeredUser.name}.`);
       } else if (selectedRole === 'ngo') {
         if (!ngoOrgName || !ngoDarpanId) {
           setErrorMsg('NGO Darpan ID and Registered Organization Name are mandatory under Indian verification norms.');
@@ -196,7 +210,7 @@ export default function LoginPage() {
           return;
         }
 
-        const registeredUser = FoodBridgeStore.registerUser({
+        regResult = await FoodBridgeStore.registerUserAsync({
           role: 'ngo',
           name,
           email,
@@ -220,16 +234,14 @@ export default function LoginPage() {
             hygiene_undertaking: ngoHygienePledge,
           },
         });
-
-        setSuccessMsg(`Registration successful! Verified Darpan NGO profile created for ${registeredUser.name}.`);
-      } else if (selectedRole === 'driver') {
+      } else {
         if (!drvLegalName || !drvDlNumber || !drvVehicleNo) {
           setErrorMsg('Driving Licence Number, Legal Name, and Vehicle Registration (RC) are mandatory under Motor Vehicles Act.');
           setIsSubmitting(false);
           return;
         }
 
-        const registeredUser = FoodBridgeStore.registerUser({
+        regResult = await FoodBridgeStore.registerUserAsync({
           role: 'driver',
           name,
           email,
@@ -252,16 +264,20 @@ export default function LoginPage() {
             volunteer_pledge: drvPledge,
           },
         });
-
-        setSuccessMsg(`Registration successful! Verified Driver profile created for ${registeredUser.name}.`);
       }
 
+      if (!regResult.success) {
+        setErrorMsg(regResult.error || 'Registration failed. Please try again.');
+        setIsSubmitting(false);
+        return;
+      }
+
+      setSuccessMsg(`Registration successful! Verified profile created for ${regResult.user?.name || name}. Redirecting...`);
       setTimeout(() => {
         router.push('/profile');
       }, 500);
     } catch (err: any) {
       setErrorMsg(err?.message || 'Error occurred during registration. Please try again.');
-    } finally {
       setIsSubmitting(false);
     }
   };

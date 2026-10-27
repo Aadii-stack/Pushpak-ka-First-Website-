@@ -133,6 +133,58 @@ export class FoodBridgeStore {
         },
       ]);
     }
+
+    // Non-blocking sync with database
+    this.syncWithBackend().catch(() => {});
+  }
+
+  // Sync with production database APIs
+  static async syncWithBackend(): Promise<void> {
+    if (typeof window === 'undefined') return;
+    try {
+      const meRes = await fetch('/api/auth/me', { credentials: 'include' });
+      if (meRes.ok) {
+        const data = await meRes.json();
+        if (data.user) {
+          setStorage(STORAGE_KEYS.CURRENT_USER, data.user);
+          window.localStorage.setItem(STORAGE_KEYS.AUTH_STATUS, 'authenticated');
+        }
+      }
+
+      const listingsRes = await fetch('/api/listings', { credentials: 'include' });
+      if (listingsRes.ok) {
+        const data = await listingsRes.json();
+        if (data.listings && Array.isArray(data.listings) && data.listings.length > 0) {
+          setStorage(STORAGE_KEYS.LISTINGS, data.listings);
+        }
+      }
+
+      const tieUpsRes = await fetch('/api/tie-ups', { credentials: 'include' });
+      if (tieUpsRes.ok) {
+        const data = await tieUpsRes.json();
+        if (data.tieUps && Array.isArray(data.tieUps) && data.tieUps.length > 0) {
+          setStorage(STORAGE_KEYS.TIE_UPS, data.tieUps);
+        }
+      }
+
+      const transportsRes = await fetch('/api/transports', { credentials: 'include' });
+      if (transportsRes.ok) {
+        const data = await transportsRes.json();
+        if (data.transports && Array.isArray(data.transports) && data.transports.length > 0) {
+          setStorage(STORAGE_KEYS.TRANSPORTS, data.transports);
+        }
+      }
+
+      const analyticsRes = await fetch('/api/analytics', { credentials: 'include' });
+      if (analyticsRes.ok) {
+        const data = await analyticsRes.json();
+        if (data.analytics) {
+          setStorage(STORAGE_KEYS.ANALYTICS, data.analytics);
+        }
+      }
+    } catch (err) {
+      console.warn('FoodBridgeStore backend sync notice:', err);
+    }
   }
 
   // Reset to seed data
@@ -189,7 +241,37 @@ export class FoodBridgeStore {
     const users = this.getUsers();
     const targetUser = users.find((u) => u.role === role) || users[0];
     this.setCurrentUser(targetUser);
+
+    if (typeof window !== 'undefined') {
+      fetch('/api/auth/switch-role', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role }),
+        credentials: 'include',
+      }).catch(console.error);
+    }
     return targetUser;
+  }
+
+  static async switchRoleAsync(role: UserRole): Promise<User> {
+    try {
+      const res = await fetch('/api/auth/switch-role', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role }),
+        credentials: 'include',
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.user) {
+          this.setCurrentUser(data.user);
+          return data.user;
+        }
+      }
+    } catch (e) {
+      console.error('switchRoleAsync error:', e);
+    }
+    return this.switchRole(role);
   }
 
   static getUsers(): User[] {
@@ -198,23 +280,54 @@ export class FoodBridgeStore {
 
   static logout(): void {
     if (typeof window !== 'undefined') {
+      fetch('/api/auth/logout', { method: 'POST', credentials: 'include' }).catch(console.error);
       window.localStorage.setItem(STORAGE_KEYS.AUTH_STATUS, 'unauthenticated');
       window.dispatchEvent(new Event('foodbridge_state_change'));
     }
   }
 
   static login(email: string, password?: string, preferredRole?: UserRole): { success: boolean; user?: User; error?: string } {
+    if (typeof window !== 'undefined') {
+      fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password, preferredRole }),
+        credentials: 'include',
+      }).catch(console.error);
+    }
+
     const users = this.getUsers();
     let target = users.find((u) => u.email.toLowerCase() === email.toLowerCase());
     if (!target && preferredRole) {
       target = users.find((u) => u.role === preferredRole);
     }
     if (!target) {
-      // If not registered yet, default to first user or create one
       target = users[0];
     }
     this.setCurrentUser(target);
     return { success: true, user: target };
+  }
+
+  static async loginAsync(email: string, password?: string, preferredRole?: UserRole): Promise<{ success: boolean; user?: User; error?: string }> {
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password, preferredRole }),
+        credentials: 'include',
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        return { success: false, error: data.error || 'Invalid credentials' };
+      }
+      if (data.user) {
+        this.setCurrentUser(data.user);
+        return { success: true, user: data.user };
+      }
+    } catch (e: any) {
+      return { success: false, error: e.message || 'Login network error' };
+    }
+    return this.login(email, password, preferredRole);
   }
 
   static loginWithGoogle(
@@ -349,6 +462,15 @@ export class FoodBridgeStore {
     ngoDetails?: Partial<NGOProfile>;
     driverDetails?: Partial<DriverProfile>;
   }): User {
+    if (typeof window !== 'undefined') {
+      fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(params),
+        credentials: 'include',
+      }).catch(console.error);
+    }
+
     const users = this.getUsers();
     const newUser: User = {
       id: `usr_${params.role}_${Date.now()}`,
@@ -455,7 +577,48 @@ export class FoodBridgeStore {
     return newUser;
   }
 
+  static async registerUserAsync(params: {
+    role: UserRole;
+    name: string;
+    email: string;
+    phone: string;
+    password?: string;
+    restaurantDetails?: Partial<RestaurantProfile>;
+    ngoDetails?: Partial<NGOProfile>;
+    driverDetails?: Partial<DriverProfile>;
+  }): Promise<{ success: boolean; user?: User; error?: string }> {
+    try {
+      const res = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(params),
+        credentials: 'include',
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        return { success: false, error: data.error || 'Registration failed' };
+      }
+      if (data.user) {
+        this.setCurrentUser(data.user);
+        return { success: true, user: data.user };
+      }
+    } catch (e: any) {
+      return { success: false, error: e.message || 'Registration network error' };
+    }
+    const user = this.registerUser(params);
+    return { success: true, user };
+  }
+
   static updateCurrentUser(userUpdates: Partial<User>, roleDetails?: any): User {
+    if (typeof window !== 'undefined') {
+      fetch('/api/auth/me', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...userUpdates, roleDetails }),
+        credentials: 'include',
+      }).catch(console.error);
+    }
+
     const user = this.getCurrentUser();
     if (!user) throw new Error('No user logged in');
 
@@ -580,6 +743,15 @@ export class FoodBridgeStore {
   }
 
   static createListing(newListing: Omit<SurplusListing, 'id' | 'created_at' | 'status' | 'remaining_quantity'>): SurplusListing {
+    if (typeof window !== 'undefined') {
+      fetch('/api/listings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newListing),
+        credentials: 'include',
+      }).catch(console.error);
+    }
+
     const listings = this.getListings();
     const id = `list_${Date.now()}`;
     const listing: SurplusListing = {
@@ -660,6 +832,15 @@ export class FoodBridgeStore {
     people_count?: number;
     notes?: string;
   }): TieUpRequest {
+    if (typeof window !== 'undefined') {
+      fetch('/api/tie-ups', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(params),
+        credentials: 'include',
+      }).catch(console.error);
+    }
+
     const listing = this.getListingById(params.listing_id);
     const ngo = this.getNGOById(params.ngo_id);
     if (!listing || !ngo) throw new Error('Listing or NGO not found');
@@ -720,6 +901,15 @@ export class FoodBridgeStore {
     action: 'accept' | 'decline',
     counterProposal?: string
   ): { tieUp: TieUpRequest; transport?: TransportRecord } {
+    if (typeof window !== 'undefined') {
+      fetch(`/api/tie-ups/${tieUpId}/respond`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, counter_proposal: counterProposal }),
+        credentials: 'include',
+      }).catch(console.error);
+    }
+
     const tieUps = this.getTieUps();
     const index = tieUps.findIndex((t) => t.id === tieUpId);
     if (index === -1) throw new Error('Tie-up not found');
@@ -878,6 +1068,15 @@ export class FoodBridgeStore {
       notes?: string;
     }
   ): TransportRecord | null {
+    if (typeof window !== 'undefined') {
+      fetch(`/api/transports/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nextStatus, ...extra }),
+        credentials: 'include',
+      }).catch(console.error);
+    }
+
     const transports = this.getTransports();
     const index = transports.findIndex((t) => t.id === id);
     if (index === -1) return null;
@@ -1034,6 +1233,15 @@ export class FoodBridgeStore {
     description: string;
     severity: IssueFlag['severity'];
   }): IssueFlag {
+    if (typeof window !== 'undefined') {
+      fetch('/api/issues', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(params),
+        credentials: 'include',
+      }).catch(console.error);
+    }
+
     const transport = this.getTransportById(params.transport_id);
     const user = this.getCurrentUser();
     if (!transport) throw new Error('Transport record not found');
@@ -1086,6 +1294,15 @@ export class FoodBridgeStore {
     issueId: string,
     resolution: { status: 'resolved' | 'dismissed'; admin_notes: string; action_taken?: string }
   ): IssueFlag | null {
+    if (typeof window !== 'undefined') {
+      fetch(`/api/issues/${issueId}/resolve`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(resolution),
+        credentials: 'include',
+      }).catch(console.error);
+    }
+
     const issues = this.getIssues();
     const index = issues.findIndex((i) => i.id === issueId);
     if (index === -1) return null;
@@ -1173,12 +1390,28 @@ export class FoodBridgeStore {
   }
 
   static markNotificationRead(id: string): void {
+    if (typeof window !== 'undefined') {
+      fetch('/api/notifications', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+        credentials: 'include',
+      }).catch(console.error);
+    }
     const notifs = this.getNotifications();
     const updated = notifs.map((n) => (n.id === id ? { ...n, read: true } : n));
     setStorage(STORAGE_KEYS.NOTIFICATIONS, updated);
   }
 
   static markAllNotificationsRead(userId: string): void {
+    if (typeof window !== 'undefined') {
+      fetch('/api/notifications', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ markAll: true, userId }),
+        credentials: 'include',
+      }).catch(console.error);
+    }
     const notifs = this.getNotifications();
     const updated = notifs.map((n) => (n.user_id === userId ? { ...n, read: true } : n));
     setStorage(STORAGE_KEYS.NOTIFICATIONS, updated);

@@ -1,0 +1,391 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id              String             @id @default(cuid())
+  email           String             @unique
+  password_hash   String
+  name            String
+  phone           String
+  role            String             @default("restaurant") // 'restaurant' | 'ngo' | 'driver'
+  verified_status String             @default("pending")    // 'pending' | 'verified' | 'rejected'
+  status          String             @default("active")     // 'active' | 'suspended'
+  avatar_url      String?
+  auth_provider   String?            @default("email")      // 'email' | 'google'
+  created_at      DateTime           @default(now())
+  updated_at      DateTime           @updatedAt
+  last_login_at   DateTime?
+
+  restaurant_profile RestaurantProfile?
+  ngo_profile        NGOProfile?
+  driver_profile     DriverProfile?
+  sessions           Session[]
+  notifications      AppNotification[]
+
+  @@index([email])
+  @@index([role])
+  @@index([status])
+  @@index([verified_status])
+}
+
+model Session {
+  id         String   @id @default(cuid())
+  user_id    String
+  token      String   @unique
+  expires_at DateTime
+  created_at DateTime @default(now())
+  user_agent String?
+  ip_address String?
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([token])
+  @@index([user_id])
+  @@index([expires_at])
+}
+
+model RestaurantProfile {
+  id                        String   @id @default(cuid())
+  user_id                   String   @unique
+  business_name             String
+  address                   String
+  lat                       Float
+  lng                       Float
+  cuisine_type              String
+  operating_hours           String
+  contact_person            String
+  phone                     String
+  email                     String
+  fssai_license             String
+  fssai_expiry              String?
+  gstin                     String?
+  pan_number                String?
+  trade_license_no          String?
+  fostac_supervisor_name    String?
+  establishment_type        String?
+  city                      String?
+  pincode                   String?
+  fssai_surplus_declaration Boolean  @default(true)
+  verification_doc_url      String?
+  logistics_capability      String   @default("staff_handoff_cold_storage")
+  photos                    String   @default("[]") // JSON string of photo urls
+  total_meals_donated       Int      @default(0)
+  co2_saved_kg              Float    @default(0.0)
+  rating                    Float    @default(5.0)
+  created_at                DateTime @default(now())
+  updated_at                DateTime @updatedAt
+
+  user             User             @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  listings         SurplusListing[]
+  incoming_tie_ups TieUpRequest[]
+
+  @@index([user_id])
+  @@index([city])
+  @@index([fssai_license])
+}
+
+model NGOProfile {
+  id                       String   @id @default(cuid())
+  user_id                  String   @unique
+  org_name                 String
+  registration_no          String
+  darpan_id                String?
+  registration_type        String?
+  pan_number               String?
+  section_12a_80g          String?
+  fcra_status              String?
+  authorized_signatory     String?
+  city                     String?
+  pincode                  String?
+  hygiene_undertaking      Boolean  @default(true)
+  service_area             String
+  address                  String
+  lat                      Float
+  lng                      Float
+  capacity_per_day         Int      @default(500)
+  daily_meal_capacity      Int?
+  storage_capacity         String
+  verification_doc_url     String?
+  has_own_transport        Boolean  @default(true)
+  contact_person           String
+  phone                    String
+  email                    String
+  total_meals_received     Int      @default(0)
+  people_served            Int      @default(0)
+  partner_restaurants_count Int     @default(0)
+  created_at               DateTime @default(now())
+  updated_at               DateTime @updatedAt
+
+  user             User             @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  standing_needs   NGONeedRequest[]
+  outgoing_tie_ups TieUpRequest[]
+
+  @@index([user_id])
+  @@index([city])
+  @@index([darpan_id])
+}
+
+model DriverProfile {
+  id                      String   @id @default(cuid())
+  user_id                 String   @unique
+  full_legal_name         String
+  phone                   String
+  email                   String
+  dl_number               String
+  dl_expiry               String
+  aadhaar_last4           String
+  vehicle_number          String
+  vehicle_type            String
+  puc_number              String
+  puc_expiry              String?
+  insurance_policy_no     String
+  has_insulated_carrier   Boolean  @default(true)
+  emergency_contact_name  String
+  emergency_contact_phone String
+  service_city            String
+  service_pincodes        String   @default("[]") // JSON string of pincodes
+  volunteer_pledge        Boolean  @default(true)
+  total_pickups_completed Int      @default(0)
+  rating                  Float    @default(5.0)
+  created_at              DateTime @default(now())
+  updated_at              DateTime @updatedAt
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id])
+  @@index([service_city])
+  @@index([dl_number])
+}
+
+model SurplusListing {
+  id                  String   @id @default(cuid())
+  restaurant_id       String
+  restaurant_name     String
+  restaurant_address  String
+  restaurant_lat      Float
+  restaurant_lng      Float
+  restaurant_phone    String?
+  title               String
+  category            String
+  description         String
+  quantity            Float
+  remaining_quantity  Float
+  unit                String
+  dietary_tags        String   @default("[]") // JSON string
+  prepared_at         DateTime
+  expiry_at           DateTime
+  pickup_window_start DateTime
+  pickup_window_end   DateTime
+  packaging_status    String
+  status              String   @default("available") // available | reserved | partially_reserved | picked_up | expired
+  photo_urls          String   @default("[]") // JSON string
+  logistics_offer     String
+  created_at          DateTime @default(now())
+  updated_at          DateTime @updatedAt
+
+  restaurant RestaurantProfile @relation(fields: [restaurant_id], references: [id], onDelete: Cascade)
+  tie_ups    TieUpRequest[]
+
+  @@index([restaurant_id])
+  @@index([status])
+  @@index([category])
+  @@index([expiry_at])
+  @@index([created_at])
+}
+
+model NGONeedRequest {
+  id                  String   @id @default(cuid())
+  ngo_id              String
+  ngo_name            String
+  ngo_address         String
+  ngo_lat             Float
+  ngo_lng             Float
+  ngo_contact         String?
+  quantity_needed     Float
+  unit                String
+  category_preference String
+  needed_by           DateTime
+  status              String   @default("active") // active | fulfilled | expired
+  description         String
+  created_at          DateTime @default(now())
+  updated_at          DateTime @updatedAt
+
+  ngo NGOProfile @relation(fields: [ngo_id], references: [id], onDelete: Cascade)
+
+  @@index([ngo_id])
+  @@index([status])
+  @@index([needed_by])
+}
+
+model TieUpRequest {
+  id                   String    @id @default(cuid())
+  listing_id           String
+  listing_title        String
+  food_category        String
+  ngo_id               String
+  ngo_name             String
+  ngo_address          String
+  ngo_phone            String
+  restaurant_id        String
+  restaurant_name      String
+  restaurant_address   String
+  restaurant_phone     String
+  quantity_requested   Float
+  unit                 String
+  status               String    @default("pending") // pending | accepted | declined | cancelled
+  proposed_pickup_time DateTime
+  transport_mode       String
+  vehicle_type         String?
+  people_count         Int?
+  notes                String?
+  counter_proposal     String?
+  created_at           DateTime  @default(now())
+  responded_at         DateTime?
+
+  listing   SurplusListing    @relation(fields: [listing_id], references: [id], onDelete: Cascade)
+  ngo       NGOProfile        @relation(fields: [ngo_id], references: [id], onDelete: Cascade)
+  restaurant RestaurantProfile @relation(fields: [restaurant_id], references: [id], onDelete: Cascade)
+  transport TransportRecord?
+
+  @@index([listing_id])
+  @@index([ngo_id])
+  @@index([restaurant_id])
+  @@index([status])
+  @@index([created_at])
+}
+
+model TransportRecord {
+  id                       String   @id @default(cuid())
+  tie_up_id                String   @unique
+  listing_id               String
+  listing_title            String
+  food_category            String
+  quantity                 Float
+  unit                     String
+  restaurant_id            String
+  restaurant_name          String
+  restaurant_address       String
+  restaurant_lat           Float
+  restaurant_lng           Float
+  restaurant_phone         String
+  ngo_id                   String
+  ngo_name                 String
+  ngo_address              String
+  ngo_lat                  Float
+  ngo_lng                  Float
+  ngo_phone                String
+  driver_name              String
+  driver_phone             String
+  vehicle_number           String
+  transport_assigned_by    String
+  status                   String   @default("confirmed") // confirmed | en_route | picked_up | in_transit | delivered | completed | issue
+  current_lat              Float
+  current_lng              Float
+  last_location_update_at  DateTime @default(now())
+  pickup_otp               String
+  delivery_otp             String
+  pickup_otp_verified      Boolean  @default(false)
+  delivery_otp_verified    Boolean  @default(false)
+  proof_pickup_url         String?
+  proof_delivery_url       String?
+  issue_notes              String?
+  estimated_arrival_minutes Int?
+  pickup_window_start      DateTime
+  pickup_window_end        DateTime
+  tracking_history         String   @default("[]") // JSON string of LocationPoint[]
+  timeline_events          String   @default("[]") // JSON string of timeline events
+  created_at               DateTime @default(now())
+  updated_at               DateTime @updatedAt
+
+  tie_up TieUpRequest @relation(fields: [tie_up_id], references: [id], onDelete: Cascade)
+  issues IssueFlag[]
+
+  @@index([status])
+  @@index([restaurant_id])
+  @@index([ngo_id])
+  @@index([created_at])
+}
+
+model IssueFlag {
+  id              String    @id @default(cuid())
+  transport_id    String
+  listing_title   String
+  restaurant_name String
+  ngo_name        String
+  raised_by       String
+  raised_by_name  String
+  issue_type      String
+  description     String
+  severity        String    @default("medium") // low | medium | high | critical
+  status          String    @default("open")   // open | under_review | resolved | dismissed
+  admin_notes     String?
+  action_taken    String?
+  created_at      DateTime  @default(now())
+  resolved_at     DateTime?
+  resolved_by     String?
+
+  transport TransportRecord @relation(fields: [transport_id], references: [id], onDelete: Cascade)
+
+  @@index([transport_id])
+  @@index([status])
+  @@index([severity])
+  @@index([created_at])
+}
+
+model AppNotification {
+  id         String   @id @default(cuid())
+  user_id    String
+  role       String
+  type       String
+  title      String
+  message    String
+  link       String?
+  read       Boolean  @default(false)
+  created_at DateTime @default(now())
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id])
+  @@index([read])
+  @@index([created_at])
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  entity_type String
+  entity_id   String
+  actor_id    String
+  actor_name  String
+  actor_role  String
+  action      String
+  details     String
+  timestamp   DateTime @default(now())
+
+  @@index([entity_type, entity_id])
+  @@index([actor_id])
+  @@index([timestamp])
+}
+
+model PlatformAnalytics {
+  id                          String   @id @default("global")
+  total_food_saved_kg         Float    @default(0.0)
+  total_meals_donated         Int      @default(0)
+  total_co2_offset_kg         Float    @default(0.0)
+  active_listings_count       Int      @default(0)
+  active_tie_ups_count        Int      @default(0)
+  active_transports_count     Int      @default(0)
+  registered_restaurants      Int      @default(0)
+  registered_ngos             Int      @default(0)
+  pending_verifications       Int      @default(0)
+  resolved_disputes           Int      @default(0)
+  avg_pickup_minutes          Float    @default(0.0)
+  completion_rate_percent     Float    @default(0.0)
+  waste_diversion_rate_percent Float   @default(0.0)
+  updated_at                  DateTime @updatedAt
+}
